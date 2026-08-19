@@ -1,0 +1,21 @@
+{
+  "name": "support-cdc-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "database.hostname": "postgres",
+    "database.port": "5432",
+    "database.user": "appuser",
+    "database.password": "apppass",
+    "database.dbname": "supportdb",
+    "topic.prefix": "support",
+
+    "plugin.name": "pgoutput",
+    "publication.name": "dbz_publication",
+    "slot.name": "dbz_slot",
+
+    "table.include.list": "public.tickets,public.ticket_resolutions",
+
+    "tombstones.on.delete": "true",
+    "decimal.handling.mode": "double"
+  }
+}

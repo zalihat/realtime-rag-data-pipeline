@@ -1,5 +1,5 @@
 {
-  "name": "support-cdc-connector",
+  "name": "support-pg-connector",
   "config": {
     "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
     "database.hostname": "postgres",
@@ -8,14 +8,15 @@
     "database.password": "apppass",
     "database.dbname": "supportdb",
     "topic.prefix": "support",
-
     "plugin.name": "pgoutput",
     "publication.name": "dbz_publication",
-    "slot.name": "dbz_slot",
-
+    "publication.autocreate.mode": "disabled",
+    "slot.name": "dbz_support_slot",
     "table.include.list": "public.tickets,public.ticket_resolutions",
-
-    "tombstones.on.delete": "true",
-    "decimal.handling.mode": "double"
+    "tombstones.on.delete": "false",
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "false",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false"
   }
 }

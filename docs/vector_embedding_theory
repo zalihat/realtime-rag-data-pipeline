@@ -1,0 +1,101 @@
+# Vector Embeddings & Similarity Search — Quick Reference
+
+## What is an embedding?
+
+An embedding model turns text into a list of numbers (a vector) that represents its meaning. Text with similar meaning produces vectors that sit close together in that number-space, even if the words used are completely different.
+
+Example: "package never arrived" and "order didn't show up" → similar vectors, despite sharing almost no words.
+
+## What does `all-MiniLM-L6-v2` produce?
+
+- Every input text → a fixed list of **384 numbers**, no matter how long or short the text is
+- A 3-word sentence and a 3-paragraph note both produce exactly 384 numbers
+- Values are small floats, roughly between -1 and 1
+- No single number means anything on its own — meaning only exists when comparing two full vectors to each other
+
+```python
+from sentence_transformers import SentenceTransformer
+model = SentenceTransformer('all-MiniLM-L6-v2')
+vec = model.encode("some text")
+print(vec.shape)   # (384,)
+```
+
+## Reading array shapes
+
+| Shape | Meaning |
+|---|---|
+| `(384,)` | 1 vector, flat list of 384 numbers, no rows/columns |
+| `(1, 384)` | Same thing, wrapped as 1 row × 384 columns |
+| `(100, 384)` | 100 different texts embedded at once — 100 rows, each a 384-number vector |
+
+One embedding = one row = one flat list of 384 numbers.
+
+## What "similarity" means
+
+Once text is a vector, "find similar text" = "find vectors that are close together in 384-dimensional space."
+
+- **Cosine similarity** — measures the angle between two vectors. Most common choice for text embeddings.
+- **Euclidean distance** — measures straight-line distance between two vectors.
+
+Similarity search = embed the query → find the k nearest stored vectors to it.
+
+## Why you need an index (HNSW)
+
+Naive approach: compare the query vector against every stored vector. Exact, but slow at scale (fine for thousands of rows, too slow for millions).
+
+**HNSW (Hierarchical Navigable Small World)**: a multi-layer graph built ahead of time, like a skip-list.
+
+- Top layer: few nodes, long-range links → jump roughly to the right neighborhood fast
+- Lower layers: denser, shorter links → refine down to the actual nearest neighbors
+- A query "walks" the graph top to bottom instead of checking every point
+- Approximate, not exact — but very accurate in practice, and much faster than brute force
+
+**Why HNSW over IVFFlat here:** HNSW lets you insert new vectors into the graph as they arrive, which fits a continuously growing/streaming dataset. IVFFlat clusters vectors upfront based on an assumed dataset size, so it doesn't handle streaming inserts as well.
+
+## What pgvector actually is
+
+pgvector = a Postgres extension that adds:
+- A `vector` column type (stores the array of numbers)
+- HNSW / IVFFlat as real Postgres index types
+- Distance operators (`<=>` cosine, `<->` Euclidean) usable directly in SQL
+
+It's not a separate database engine — it's a normal Postgres table with one specially-typed column and a specially-typed index.
+
+### Example table
+
+```sql
+CREATE TABLE resolution_embeddings (
+    id              SERIAL PRIMARY KEY,
+    ticket_id       INTEGER NOT NULL,
+    resolution_id   INTEGER NOT NULL,
+    chunk_text      TEXT NOT NULL,
+    embedding       VECTOR(384),
+    resolved_at     TIMESTAMPTZ NOT NULL,
+    agent_name      TEXT,
+    created_at      TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX ON resolution_embeddings
+USING hnsw (embedding vector_cosine_ops);
+```
+
+### Example query (retrieval step for RAG)
+
+```sql
+SELECT chunk_text, resolution_id, resolved_at
+FROM resolution_embeddings
+ORDER BY embedding <=> '[0.012, -0.045, ...]'::vector
+LIMIT 5;
+```
+
+"Give me the 5 rows whose embedding is closest to this query vector."
+
+## Key terms, one-line definitions
+
+- **Embedding** — a piece of text represented as a fixed-length list of numbers
+- **Vector** — same thing as embedding, generic math term for a list of numbers
+- **Dimension** — one of the 384 numbers in the vector
+- **Cosine similarity** — a way to measure how close two vectors are
+- **Chunk** — one piece of text that got turned into one embedding (one table row)
+- **HNSW** — a graph-based index that makes nearest-neighbor search fast
+- **pgvector** — the Postgres extension that makes all of this work as normal SQL

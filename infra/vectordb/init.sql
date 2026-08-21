@@ -23,10 +23,13 @@ CREATE TABLE resolution_embeddings (
     -- back to Postgres at query time.
     agent_name      TEXT,
     resolved_at     TIMESTAMPTZ,
+    ticket_subject  TEXT,
+    ticket_body     TEXT,
 
-    -- The actual text that was embedded. Kept alongside the vector so
-    -- retrieval results are self-contained (no round-trip needed to
-    -- fetch the source text for display / LLM context).
+    -- The text that was actually embedded: subject + body + resolution
+    -- note combined. Embedding the resolution note alone lost too much
+    -- context to distinguish similar-sounding issues from different
+    -- categories -- see project notes.
     chunk_text      TEXT NOT NULL,
     chunk_index     INTEGER NOT NULL DEFAULT 0,  -- for future chunking of long notes
 
